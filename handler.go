@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/csv"
 	"encoding/json"
@@ -9,6 +10,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	// "regexp"
 
 	"github.com/dgraph-io/dgo/protos/api"
 )
@@ -25,6 +28,7 @@ func ListProducts(w http.ResponseWriter, r *http.Request) {
 
 	q := `query Data{
 		data(func: type(Product)) {
+			uid
 			id
 			name
 			price
@@ -56,6 +60,7 @@ func ListBuyers(w http.ResponseWriter, r *http.Request) {
 
 	q := `query Data{
 		data(func: type(Buyer)) {
+			uid
 			id
 			name
 			age
@@ -69,6 +74,46 @@ func ListBuyers(w http.ResponseWriter, r *http.Request) {
 	}
 	type Root struct {
 		Data []Buyer `json:"data"`
+	}
+	var root Root
+	err = json.Unmarshal(resp.Json, &root)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cancel()
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp.Json)
+}
+
+func BuyerDetail(w http.ResponseWriter, r *http.Request) {
+
+	ids, exist := r.URL.Query()["id"]
+	if !exist || len(ids[0]) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "id invalid")
+		return
+	}
+	// id := ids[0]
+
+	dg, cancel := newClient()
+
+	q := `query Data{
+		data(func: uid(0xc352)) {
+			buyerid
+			device
+			ip
+			productids
+		}
+	}`
+
+	ctx := context.Background()
+	resp, err := dg.NewTxn().Query(ctx, q)
+	if err != nil {
+		log.Fatal(err)
+	}
+	type Root struct {
+		Data []Transaction `json:"data"`
 	}
 	var root Root
 	err = json.Unmarshal(resp.Json, &root)
@@ -112,6 +157,8 @@ func LoadData(w http.ResponseWriter, r *http.Request) {
 		result = loadBuyers(response)
 	} else if typeData == "products" {
 		result = loadProducts(response)
+	} else if typeData == "transactions" {
+		result = loadTransactions(response)
 	} else {
 		result = Response{Status: "400", Message: "invalid type"}
 	}
@@ -216,6 +263,8 @@ func loadProducts(r *http.Response) Response {
 			break
 		}
 
+		// re := regexp.MustCompile(`'("[^"\\]*(?:\\.[^"\\]*)*")|/\*[^*]*\*+(?:[^/*][^*]*\*+)*/`)
+		// s := re.Split(row[0], -1)
 		s := strings.Split(row[0], "'")
 		p := Product{
 			Id:    string(s[0]),
@@ -242,5 +291,84 @@ func loadProducts(r *http.Response) Response {
 	cancel()
 
 	resp = Response{Status: "200", Message: "products loaded"}
+	return resp
+}
+
+func loadTransactions(r *http.Response) Response {
+
+	responseData, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	data := bytes.Split(responseData, []byte{0, 0})
+
+	var resp = Response{}
+
+	dg, cancel := newClient()
+
+	op := &api.Operation{}
+	op.Schema = `
+		id: string .
+		ip: string .
+		device: string .
+		buyerid: string @index(exact) .
+		productids: [string] .
+		type Transaction {
+			id
+			buyerid
+			device
+			ip
+			productids
+		}
+	`
+	ctx := context.Background()
+	err1 := dg.Alter(ctx, op)
+	if err1 != nil {
+		log.Fatal(err1)
+	}
+	if len(data) > 0 {
+		for index, item := range data {
+			element := bytes.Split(item, []byte{0})
+
+			if index > 5 {
+				break
+			}
+
+			prod_str := string(element[4])
+			prod_trim := strings.Trim(prod_str, "()")
+			products := strings.Split(prod_trim, ",")
+
+			t := Transaction{
+				Id:         string(element[0]),
+				BuyerId:    string(element[1]),
+				Ip:         string(element[2]),
+				Device:     string(element[3]),
+				Productids: products,
+				DType:      []string{"Transaction"},
+			}
+
+			mu := &api.Mutation{
+				CommitNow: true,
+			}
+			pb, err := json.Marshal(t)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			mu.SetJson = pb
+			_, err2 := dg.NewTxn().Mutate(ctx, mu)
+			if err2 != nil {
+				log.Fatal(err2)
+			}
+			fmt.Println(prod_trim)
+			fmt.Println(products)
+		}
+		resp = Response{Status: "200", Message: "transactions loaded"}
+	} else {
+		resp = Response{Status: "200", Message: "transaction data not found"}
+	}
+	cancel()
+
 	return resp
 }

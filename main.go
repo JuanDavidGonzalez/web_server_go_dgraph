@@ -13,6 +13,7 @@ func main() {
 	r.Get("/products", ListProducts)
 	r.Get("/buyers", ListBuyers)
 	r.Get("/load_data", LoadData)
+	r.Get("/buyer", BuyerDetail)
 
 	http.ListenAndServe(":3000", r)
 }
