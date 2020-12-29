@@ -22,6 +22,8 @@ func HandleRoot(w http.ResponseWriter, r *http.Request) {
 
 func ListProducts(w http.ResponseWriter, r *http.Request) {
 
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+
 	dg, cancel := newClient()
 
 	q := `query Data{
@@ -36,7 +38,10 @@ func ListProducts(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	resp, err := dg.NewTxn().Query(ctx, q)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	type Root struct {
 		Data []Product `json:"data"`
@@ -44,15 +49,19 @@ func ListProducts(w http.ResponseWriter, r *http.Request) {
 	var root Root
 	err = json.Unmarshal(resp.Json, &root)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	cancel()
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp.Json)
 }
 
 func ListBuyers(w http.ResponseWriter, r *http.Request) {
+
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
 
 	dg, cancel := newClient()
 
@@ -76,15 +85,19 @@ func ListBuyers(w http.ResponseWriter, r *http.Request) {
 	var root Root
 	err = json.Unmarshal(resp.Json, &root)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	cancel()
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp.Json)
 }
 
 func BuyerDetail(w http.ResponseWriter, r *http.Request) {
+
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
 
 	ids, exist := r.URL.Query()["id"]
 	if !exist || len(ids[0]) < 1 {
@@ -111,7 +124,10 @@ func BuyerDetail(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	type Root struct {
 		Data []Transaction `json:"data"`
@@ -122,12 +138,13 @@ func BuyerDetail(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	cancel()
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp.Json)
 }
 
 func GetProduct(w http.ResponseWriter, r *http.Request) {
+
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
 
 	ids, exist := r.URL.Query()["id"]
 	if !exist || len(ids[0]) < 1 {
@@ -153,7 +170,10 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	type Root struct {
 		Data []Transaction `json:"data"`
@@ -161,15 +181,19 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 	var root Root
 	err = json.Unmarshal(resp.Json, &root)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 	cancel()
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp.Json)
 }
 
 func GetOtherBuyer(w http.ResponseWriter, r *http.Request) {
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	ips, exist := r.URL.Query()["ip"]
 	if !exist || len(ips[0]) < 1 {
@@ -198,7 +222,10 @@ func GetOtherBuyer(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 
 	type Root struct {
@@ -207,16 +234,20 @@ func GetOtherBuyer(w http.ResponseWriter, r *http.Request) {
 	var root Root
 	err = json.Unmarshal(resp.Json, &root)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "error")
+		return
 	}
 
 	cancel()
-	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp.Json)
 }
 
 func LoadData(w http.ResponseWriter, r *http.Request) {
+
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
 
 	dates, exist := r.URL.Query()["date"]
 	if !exist || len(dates[0]) < 1 {
@@ -253,13 +284,11 @@ func LoadData(w http.ResponseWriter, r *http.Request) {
 		result = Response{Status: "400", Message: "invalid type"}
 	}
 
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
 
 func loadBuyers(r *http.Response) Response {
-
 	responseData, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		log.Fatal(err)
@@ -272,25 +301,25 @@ func loadBuyers(r *http.Response) Response {
 	op := &api.Operation{}
 	op.Schema = `
 		name: string @index(exact) .
+		id: string @index(exact) .
 		age: int .
 		type Buyer {
 			name
+			id
 			age
 		}
 	`
 	ctx := context.Background()
-	err1 := dg.Alter(ctx, op)
-	if err1 != nil {
-		log.Fatal(err1)
+	err = dg.Alter(ctx, op)
+	if err != nil {
+		fmt.Println(err)
+		resp = Response{Status: "500", Message: "internal error"}
+		return resp
 	}
 	var responseObject BuyerReponse
 	json.Unmarshal(responseData, &responseObject)
 
-	for index, item := range responseObject {
-		if index > 20 {
-			break
-		}
-
+	for _, item := range responseObject {
 		p := Buyer{
 			Id:    item.Id,
 			Name:  item.Name,
@@ -303,13 +332,15 @@ func loadBuyers(r *http.Response) Response {
 		}
 		pb, err := json.Marshal(p)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			resp = Response{Status: "500", Message: "internal error"}
+			return resp
 		}
 
 		mu.SetJson = pb
-		_, err2 := dg.NewTxn().Mutate(ctx, mu)
-		if err2 != nil {
-			log.Fatal(err2)
+		_, err = dg.NewTxn().Mutate(ctx, mu)
+		if err != nil {
+			log.Fatal(err)
 		}
 	}
 	cancel()
@@ -336,7 +367,7 @@ func loadProducts(r *http.Response) Response {
 	op := &api.Operation{}
 	op.Schema = `
 		name: string @index(exact) .
-		id: string  .
+		id: string @index(exact) .
 		price: string .
 		type Product {
 			id
@@ -345,19 +376,22 @@ func loadProducts(r *http.Response) Response {
 		}
 	`
 	ctx := context.Background()
-	err1 := dg.Alter(ctx, op)
-	if err1 != nil {
-		log.Fatal(err1)
+	err = dg.Alter(ctx, op)
+	if err != nil {
+		fmt.Println(err)
+		resp = Response{Status: "500", Message: "internal error"}
+		return resp
 	}
 
-	for index, row := range data {
-		if index == 50 {
-			break
-		}
-
-		// re := regexp.MustCompile(`'("[^"\\]*(?:\\.[^"\\]*)*")|/\*[^*]*\*+(?:[^/*][^*]*\*+)*/`)
-		// s := re.Split(row[0], -1)
-		s := strings.Split(row[0], "'")
+	for _, row := range data {
+		quoted := false
+		s := strings.FieldsFunc(row[0], func(r rune) bool {
+			if r == '"' {
+				quoted = !quoted
+			}
+			return !quoted && r == '\''
+		})
+		// s := strings.Split(row[0], "'")
 		p := Product{
 			Id:    string(s[0]),
 			Name:  string(s[1]),
@@ -375,9 +409,11 @@ func loadProducts(r *http.Response) Response {
 		}
 
 		mu.SetJson = pb
-		_, err2 := dg.NewTxn().Mutate(ctx, mu)
-		if err2 != nil {
-			log.Fatal(err2)
+		_, err = dg.NewTxn().Mutate(ctx, mu)
+		if err != nil {
+			fmt.Println(err)
+			resp = Response{Status: "500", Message: "internal error"}
+			return resp
 		}
 
 	}
@@ -402,8 +438,8 @@ func loadTransactions(r *http.Response) Response {
 
 	op := &api.Operation{}
 	op.Schema = `
-		id: string .
-		ip: string .
+		id: string @index(exact) .
+		ip: string @index(exact).
 		device: string .
 		buyer: string .
 		products: [string] .
@@ -416,17 +452,18 @@ func loadTransactions(r *http.Response) Response {
 		}
 	`
 	ctx := context.Background()
-	err1 := dg.Alter(ctx, op)
-	if err1 != nil {
-		log.Fatal(err1)
+	err = dg.Alter(ctx, op)
+	if err != nil {
+		fmt.Println(err)
+		resp = Response{Status: "500", Message: "internal error"}
+		return resp
 	}
 	if len(data) > 0 {
 		for index, item := range data {
-			element := bytes.Split(item, []byte{0})
-
-			if index > 30 {
+			if index > 100 {
 				break
 			}
+			element := bytes.Split(item, []byte{0})
 
 			prod_str := string(element[4])
 			prod_trim := strings.Trim(prod_str, "()")
@@ -450,9 +487,11 @@ func loadTransactions(r *http.Response) Response {
 			}
 
 			mu.SetJson = pb
-			_, err2 := dg.NewTxn().Mutate(ctx, mu)
-			if err2 != nil {
-				log.Fatal(err2)
+			_, err = dg.NewTxn().Mutate(ctx, mu)
+			if err != nil {
+				fmt.Println(err)
+				resp = Response{Status: "500", Message: "internal error"}
+				return resp
 			}
 		}
 		resp = Response{Status: "200", Message: "transactions loaded"}
