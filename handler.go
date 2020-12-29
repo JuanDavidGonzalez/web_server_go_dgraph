@@ -11,8 +11,6 @@ import (
 	"net/http"
 	"strings"
 
-	// "regexp"
-
 	"github.com/dgraph-io/dgo/protos/api"
 )
 
@@ -94,21 +92,24 @@ func BuyerDetail(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "id invalid")
 		return
 	}
-	// id := ids[0]
+	id := ids[0]
 
 	dg, cancel := newClient()
 
-	q := `query Data{
-		data(func: uid(0xc352)) {
-			buyerid
+	bid := make(map[string]string)
+	bid["$id"] = id
+
+	q := `query Data($id: string){
+		data(func: type(Transaction))@filter(eq(buyer,$id)){
+			buyer
 			device
 			ip
-			productids
+			products
 		}
 	}`
 
 	ctx := context.Background()
-	resp, err := dg.NewTxn().Query(ctx, q)
+	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -120,6 +121,95 @@ func BuyerDetail(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	cancel()
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp.Json)
+}
+
+func GetProduct(w http.ResponseWriter, r *http.Request) {
+
+	ids, exist := r.URL.Query()["id"]
+	if !exist || len(ids[0]) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "id invalid")
+		return
+	}
+	id := ids[0]
+
+	dg, cancel := newClient()
+
+	bid := make(map[string]string)
+	bid["$id"] = id
+
+	q := `query Data($id: string){
+		data(func: type(Product))@filter(eq(id,$id)){
+			id
+			name
+			price
+		}
+	}`
+
+	ctx := context.Background()
+	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
+	if err != nil {
+		log.Fatal(err)
+	}
+	type Root struct {
+		Data []Transaction `json:"data"`
+	}
+	var root Root
+	err = json.Unmarshal(resp.Json, &root)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cancel()
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp.Json)
+}
+
+func GetOtherBuyer(w http.ResponseWriter, r *http.Request) {
+
+	ips, exist := r.URL.Query()["ip"]
+	if !exist || len(ips[0]) < 1 {
+		w.WriteHeader(http.StatusBadRequest)
+		fmt.Fprintf(w, "ip invalid")
+		return
+	}
+	ip := ips[0]
+
+	dg, cancel := newClient()
+
+	bid := make(map[string]string)
+	bid["$ip"] = ip
+
+	q := `query Data($ip: string){
+			var(func:eq(ip,$ip)){
+			buyerid as buyer
+		  }
+		data(func: type(Buyer))@filter(eq(id,val(buyerid))){
+			name
+			age
+			id
+		}
+	}`
+
+	ctx := context.Background()
+	resp, err := dg.NewTxn().QueryWithVars(ctx, q, bid)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	type Root struct {
+		Data []Buyer `json:"data"`
+	}
+	var root Root
+	err = json.Unmarshal(resp.Json, &root)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	cancel()
 	(w).Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Content-Type", "application/json")
@@ -197,7 +287,7 @@ func loadBuyers(r *http.Response) Response {
 	json.Unmarshal(responseData, &responseObject)
 
 	for index, item := range responseObject {
-		if index > 10 {
+		if index > 20 {
 			break
 		}
 
@@ -246,8 +336,10 @@ func loadProducts(r *http.Response) Response {
 	op := &api.Operation{}
 	op.Schema = `
 		name: string @index(exact) .
+		id: string  .
 		price: string .
 		type Product {
+			id
 			name
 			price
 		}
@@ -259,7 +351,7 @@ func loadProducts(r *http.Response) Response {
 	}
 
 	for index, row := range data {
-		if index == 6 {
+		if index == 50 {
 			break
 		}
 
@@ -278,6 +370,7 @@ func loadProducts(r *http.Response) Response {
 		}
 		pb, err := json.Marshal(p)
 		if err != nil {
+			log.Fatal("aqui...")
 			log.Fatal(err)
 		}
 
@@ -312,14 +405,14 @@ func loadTransactions(r *http.Response) Response {
 		id: string .
 		ip: string .
 		device: string .
-		buyerid: string @index(exact) .
-		productids: [string] .
+		buyer: string .
+		products: [string] .
 		type Transaction {
 			id
-			buyerid
+			buyer
 			device
 			ip
-			productids
+			products
 		}
 	`
 	ctx := context.Background()
@@ -331,7 +424,7 @@ func loadTransactions(r *http.Response) Response {
 		for index, item := range data {
 			element := bytes.Split(item, []byte{0})
 
-			if index > 5 {
+			if index > 30 {
 				break
 			}
 
@@ -340,12 +433,12 @@ func loadTransactions(r *http.Response) Response {
 			products := strings.Split(prod_trim, ",")
 
 			t := Transaction{
-				Id:         string(element[0]),
-				BuyerId:    string(element[1]),
-				Ip:         string(element[2]),
-				Device:     string(element[3]),
-				Productids: products,
-				DType:      []string{"Transaction"},
+				Id:       string(element[0]),
+				Buyer:    string(element[1]), //Buyer{Uid: string(element[1])},
+				Ip:       string(element[2]),
+				Device:   string(element[3]),
+				Products: products,
+				DType:    []string{"Transaction"},
 			}
 
 			mu := &api.Mutation{
@@ -361,8 +454,6 @@ func loadTransactions(r *http.Response) Response {
 			if err2 != nil {
 				log.Fatal(err2)
 			}
-			fmt.Println(prod_trim)
-			fmt.Println(products)
 		}
 		resp = Response{Status: "200", Message: "transactions loaded"}
 	} else {
